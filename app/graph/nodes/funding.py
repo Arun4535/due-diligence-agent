@@ -22,13 +22,8 @@ llm = ChatAnthropic(
 
 
 def extract_funding(state: DueDiligenceState) -> DueDiligenceState:
-    """Search for funding history via Tavily and extract
-    structured rounds using Claude."""
+    """Extract funding history from public search results."""
 
-    # A parked/for-sale domain has no company behind it, so "funding rounds"
-    # is not a meaningful concept — skip straight past it instead of running
-    # searches that will pollute the report with noise from unrelated,
-    # similarly-named companies.
     if not state.get("is_operating_company", True):
         print("[funding] skipping funding search — not an operating company (parked/for-sale domain)")
         return {
@@ -88,7 +83,6 @@ Content:
     except (json.JSONDecodeError, TypeError, KeyError):
         rounds = []
 
-    # ── Step 3: Also check website content for funding mentions ───
     if not rounds and state.get("raw_website_content"):
         website_prompt = f"""Does this website content mention any funding, investment,
 or backing for {company_name}?

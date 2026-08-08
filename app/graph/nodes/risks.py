@@ -20,12 +20,7 @@ llm = ChatAnthropic(
 
 
 def _domain_asset_risks(state: DueDiligenceState) -> DueDiligenceState:
-    """Risk factors for a parked/for-sale domain input. Deliberately does NOT
-    reuse the startup risk categories (market/competition/team/execution/
-    funding) — those don't apply to a domain that has no product or team.
-    Instead flags the things that actually matter for a domain-resale
-    purchase decision: unverified pricing, trademark exposure, and
-    speculative buyer demand."""
+    """Return domain-resale risk factors when the input is not an operating company."""
     company = state["overview"]
 
     risks = [
@@ -37,8 +32,6 @@ def _domain_asset_risks(state: DueDiligenceState) -> DueDiligenceState:
         "unused, its value is largely speculative rather than demonstrated.",
     ]
 
-    # If the domain name closely resembles a well-known, presumably trademarked
-    # brand, flag that explicitly rather than assuming it's a neutral asset.
     name_slug = re.sub(r'[^a-z0-9]', '', company.name.lower())
     domain_slug = re.sub(r'[^a-z0-9]', '', company.website.lower())
     if name_slug and name_slug in domain_slug:
@@ -64,8 +57,7 @@ def _domain_asset_risks(state: DueDiligenceState) -> DueDiligenceState:
 
 
 def assess_risks(state: DueDiligenceState) -> DueDiligenceState:
-    """Search for negative signals, controversies, and structural
-    risks, then synthesise into a ranked risk factor list."""
+    """Search for negative signals and return risk factors."""
 
     company = state["overview"]
 
@@ -73,7 +65,6 @@ def assess_risks(state: DueDiligenceState) -> DueDiligenceState:
         print("[risks] using domain-asset risk framing — not an operating company (parked/for-sale domain)")
         return _domain_asset_risks(state)
 
-    # ── Step 1: Search for negative signals ───────────────────────
     negative_queries = [
         f"{company.name} controversy lawsuit problem issue",
         f"{company.name} layoffs shutdown pivot funding failed",
@@ -97,7 +88,6 @@ def assess_risks(state: DueDiligenceState) -> DueDiligenceState:
 
     combined_negative = "\n\n".join(negative_content) if negative_content else "No negative signals found publicly."
 
-    # ── Step 2: Build full risk context from all agents ───────────
     team_summary = "No team information found."
     if state.get("team_members"):
         team_summary = f"{len(state['team_members'])} team members identified: " + \
@@ -114,7 +104,6 @@ def assess_risks(state: DueDiligenceState) -> DueDiligenceState:
         competitor_summary = f"{len(state['competitors'])} competitors identified: " + \
             ", ".join([c.name for c in state["competitors"]])
 
-    # ── Step 3: Generate risk factors with Claude ──────────────────
     prompt = f"""You are a senior VC risk analyst performing due diligence on {company.name}.
 
 COMPANY PROFILE:
@@ -164,7 +153,6 @@ Rules:
         risks = json.loads(clean)
         if not isinstance(risks, list):
             risks = []
-        # Ensure all items are strings
         risks = [str(r) for r in risks if r]
     except (json.JSONDecodeError, TypeError):
         risks = [

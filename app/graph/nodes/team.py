@@ -1,4 +1,3 @@
-# app/graph/nodes/team.py
 import json
 import re
 from tavily import TavilyClient
@@ -30,12 +29,10 @@ def _search_roles(company_name: str, company_domain: str) -> str:
 
 
 def extract_team(state: DueDiligenceState) -> DueDiligenceState:
-    """Extract team members from website content + per-role Tavily searches, scoped to this domain."""
+    """Extract team members from website content and role-based search results."""
     company_name = state["overview"].name
     company_domain = state["overview"].website
 
-    # If the scraper already flagged this as a parked/no-content domain, don't bother
-    # searching for a team — it would just pull in an unrelated same-named entity.
     if not state.get("is_operating_company", True):
         print("[team] skipping team search — not an operating company (parked/for-sale domain)")
         return {

@@ -22,12 +22,6 @@ def analyse_market(state: DueDiligenceState) -> DueDiligenceState:
 
     company = state["overview"]
 
-    # TAM / CAGR / "market growth rate" is a startup-analysis concept. It
-    # doesn't meaningfully describe a parked/for-sale domain — citing "the
-    # global domain market is worth $X" says nothing about whether THIS
-    # domain is worth its asking price (see: land value vs. real-estate
-    # market size). Skip the search entirely and say so explicitly instead
-    # of generating a plausible-looking but irrelevant TAM section.
     if not state.get("is_operating_company", True):
         note = (
             f"{company.name} does not appear to be an operating company — "
@@ -44,7 +38,6 @@ def analyse_market(state: DueDiligenceState) -> DueDiligenceState:
             "completed_agents": state.get("completed_agents", []) + ["market"]
         }
 
-    # ── Step 1: Build targeted search queries ─────────────────────
     queries = [
         f"{company.business_model} market size TAM 2024 2025 billion",
         f"{company.name} industry market growth rate trends",
@@ -64,7 +57,6 @@ def analyse_market(state: DueDiligenceState) -> DueDiligenceState:
 
     combined = "\n\n".join(all_content) if all_content else "No market data found."
 
-    # ── Step 2: Generate market analysis with Claude ───────────────
     prompt = f"""You are a senior VC analyst writing the market analysis section
 of an investment memo for {company.name}.
 

@@ -25,9 +25,6 @@ def find_competitors(state: DueDiligenceState) -> DueDiligenceState:
 
     company = state["overview"]
 
-    # A parked/for-sale domain has no product, so "competitors" isn't a
-    # meaningful concept — skip it rather than searching for competitors
-    # of an unrelated same-named entity.
     if not state.get("is_operating_company", True):
         print("[competitors] skipping competitor search — not an operating company (parked/for-sale domain)")
         return {
@@ -35,7 +32,6 @@ def find_competitors(state: DueDiligenceState) -> DueDiligenceState:
             "completed_agents": state.get("completed_agents", []) + ["competitors"]
         }
 
-    # ── Step 1: Search for competitors ────────────────────────────
     queries = [
         f"competitors alternatives to {company.name}",
         f"best {company.business_model} companies like {company.name}",
@@ -55,7 +51,6 @@ def find_competitors(state: DueDiligenceState) -> DueDiligenceState:
 
     combined = "\n\n".join(all_content) if all_content else "No competitor data found."
 
-    # ── Step 2: Extract structured competitors with Claude ─────────
     prompt = f"""You are a competitive intelligence analyst.
 Identify 3-5 direct competitors to {company.name}.
 
@@ -93,7 +88,6 @@ Rules:
     except (json.JSONDecodeError, TypeError, KeyError):
         competitors = []
 
-    # ── Step 3: Verify top 3 competitors exist via Tavily ─────────
     verified: list[Competitor] = []
     for comp in competitors[:3]:
         try:
@@ -102,7 +96,6 @@ Rules:
                 max_results=1
             )
             if check.get("results"):
-                # Update website if Tavily found a better URL
                 result_url = check["results"][0].get("url", "")
                 if result_url and comp.name.lower().replace(" ", "") in result_url.lower():
                     comp.website = result_url
@@ -110,7 +103,6 @@ Rules:
             pass
         verified.append(comp)
 
-    # Add remaining unverified competitors
     verified.extend(competitors[3:])
 
     return {

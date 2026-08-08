@@ -20,7 +20,6 @@ llm = ChatAnthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 
-# Valid verdict values
 VALID_VERDICTS: set[str] = {"PASS", "WATCH", "AVOID"}
 
 
@@ -61,12 +60,7 @@ def _summarise_risks(state: DueDiligenceState) -> str:
 
 
 def _generate_domain_asset_verdict(state: DueDiligenceState) -> DueDiligenceState:
-    """Verdict path for inputs that resolve to a parked/for-sale domain rather
-    than an operating company. Deliberately uses a domain-investing framing
-    instead of the startup-investment memo prompt, so the model isn't nudged
-    into producing TAM figures, team/funding assessments, or false-precision
-    claims (e.g. exact buyer-pool size, "litigation would be immediate") for
-    an asset that has none of that underlying data."""
+    """Return a domain-asset verdict for non-operating-company inputs."""
 
     company = state["overview"]
     raw_content = state.get("raw_website_content", "")
@@ -147,8 +141,7 @@ sales, live traffic, or true buyer demand for a domain asset."""
 
 
 def generate_verdict(state: DueDiligenceState) -> DueDiligenceState:
-    """Synthesise all agent outputs into a final investment
-    verdict of PASS, WATCH, or AVOID with structured reasoning."""
+    """Generate the final investment verdict."""
 
     if not state.get("is_operating_company", True):
         print("[verdict] using domain-asset verdict framing — not an operating company (parked/for-sale domain)")
@@ -156,7 +149,6 @@ def generate_verdict(state: DueDiligenceState) -> DueDiligenceState:
 
     company = state["overview"]
 
-    # ── Build full memo context ────────────────────────────────────
     team_summary      = _summarise_team(state)
     funding_summary   = _summarise_funding(state)
     competitor_summary = _summarise_competitors(state)
@@ -165,8 +157,6 @@ def generate_verdict(state: DueDiligenceState) -> DueDiligenceState:
     news              = state.get("news_mentions", [])
     news_summary      = "\n".join(news[:3]) if news else "No notable news found."
 
-    # ── Scoring heuristics passed to Claude ───────────────────────
-    # Give Claude explicit signals to reason about
     data_quality_signals = []
     if state.get("team_members"):
         data_quality_signals.append(f"✓ Team data found ({len(state['team_members'])} members)")
@@ -190,7 +180,6 @@ def generate_verdict(state: DueDiligenceState) -> DueDiligenceState:
 
     signals_text = "\n".join(data_quality_signals)
 
-    # ── Main verdict prompt ────────────────────────────────────────
     prompt = f"""You are a senior VC partner at a top-tier venture fund.
 You are writing the final verdict section of an investment memo for {company.name}.
 
@@ -266,26 +255,22 @@ confidence_score rules:
 
     response = llm.invoke(prompt)
 
-    # ── Parse response ─────────────────────────────────────────────
     try:
         clean = re.sub(r"```json|```", "", response.content).strip()
         data = json.loads(clean)
 
-        # Validate verdict
         verdict = str(data.get("verdict", "WATCH")).upper().strip()
         if verdict not in VALID_VERDICTS:
             verdict = "WATCH"
 
-        # Validate confidence
         confidence = float(data.get("confidence_score", 0.5))
-        confidence = max(0.0, min(1.0, confidence))  # clamp to [0, 1]
+        confidence = max(0.0, min(1.0, confidence))
 
         reasoning = str(data.get("reasoning", "Insufficient data for a confident verdict."))
         strengths = [str(s) for s in data.get("strengths", []) if s][:5]
         concerns  = [str(c) for c in data.get("concerns", []) if c][:5]
 
     except (json.JSONDecodeError, TypeError, ValueError, KeyError):
-        # Safe fallback — never crash on verdict node
         verdict    = "WATCH"
         confidence = 0.3
         reasoning  = (

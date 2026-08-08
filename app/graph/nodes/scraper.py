@@ -1,4 +1,3 @@
-# app/graph/nodes/scraper.py
 import re
 import json
 import os
@@ -15,13 +14,8 @@ load_dotenv()
 llm = ChatAnthropic(model="claude-sonnet-4-6")
 firecrawl = FirecrawlApp(api_key=os.getenv("FIRECRAWL_API_KEY"))
 
-FIRECRAWL_TIMEOUT = 20  # seconds — hard ceiling per Firecrawl call
+FIRECRAWL_TIMEOUT = 20
 
-# Plain `requests` with no headers gets blocked (403/timeout) by a lot of
-# real, live sites that run bot protection — including major companies like
-# Perplexity. That false-negative was pushing resolution past the real
-# domain and into low-confidence TLD guessing. A normal browser UA fixes
-# most of these without needing anything fancier.
 _BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -31,17 +25,11 @@ _BROWSER_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-# Signals that a domain is parked/for-sale rather than an operating company.
-# Covers the major registrar parking pages AND the major domain-marketplace /
-# brokerage sites where a domain can be "for sale" while still rendering a
-# normal-looking landing page (these were previously missing and could slip
-# through as if they were a real operating company's homepage).
 PARKED_DOMAIN_MARKERS = [
     "domain is for sale", "buy this domain", "this domain may be for sale",
     "dynadot", "godaddy", "namecheap marketplace", "sedo", "afternic",
     "domain parking", "make an offer", "domain broker", "this domain name is for sale",
     "backorder this domain", "domain auction",
-    # Marketplaces / brokerages
     "dan.com", "hugedomains", "buydomains", "flippa", "squadhelp",
     "brandbucket", "epik marketplace", "atom.com", "domain.com marketplace",
     "porkbun marketplace", "namesilo marketplace", "escrow.com",
@@ -165,7 +153,6 @@ def _check_candidate(url: str, require_content: bool = True) -> tuple[bool, str]
     if not _url_is_reachable(url):
         return False, ""
 
-    # Retry once — Firecrawl can be transiently flaky even on real, live sites.
     result = _with_timeout(firecrawl.scrape_url, url, timeout=10)
     if result is None:
         result = _with_timeout(firecrawl.scrape_url, url, timeout=10)
@@ -202,7 +189,6 @@ def _resolve_url(startup_input: str) -> tuple[str, str]:
             print(f"[scraper] WARNING: provided URL {url} appears to be a parked/unreachable domain")
         return url, markdown
 
-    # 1. Ask the LLM directly — it already knows most real company domains
     llm_candidates = _llm_guess_domains(startup_input)
     for domain in llm_candidates:
         candidate = f"https://{domain}"
@@ -213,7 +199,6 @@ def _resolve_url(startup_input: str) -> tuple[str, str]:
     if llm_candidates:
         print(f"[scraper] LLM suggested {llm_candidates} but none passed verification (unreachable or parked)")
 
-    # 2. Fall back to web search for companies outside the LLM's knowledge
     candidates = []
     search_queries = [f"{startup_input} official website", f"{startup_input} homepage"]
     for query in search_queries:
@@ -244,7 +229,6 @@ def _resolve_url(startup_input: str) -> tuple[str, str]:
             print(f"[scraper] resolved '{startup_input}' -> {url} via search (best effort)")
             return url, markdown
 
-    # 3. Last resort: blind TLD guessing, still parked-checked
     slug = re.sub(r'[^a-z0-9]', '', startup_input.lower())
     for tld in ["com", "io", "app", "co", "ai", "dev", "so", "xyz", "in", "org", "net"]:
         candidate = f"https://{slug}.{tld}"
@@ -332,7 +316,6 @@ def scrape_website(state: DueDiligenceState) -> DueDiligenceState:
     pages_to_scrape = _discover_pages(website_url)
 
     raw_content: list[str] = []
-    # Reuse homepage markdown if we already fetched it during resolution
     if homepage_markdown:
         raw_content.append(f"## {website_url}\n{_clean_markdown(homepage_markdown)[:3000]}")
         pages_to_scrape = [p for p in pages_to_scrape if p != website_url]
@@ -347,14 +330,6 @@ def scrape_website(state: DueDiligenceState) -> DueDiligenceState:
     combined = "\n\n".join(raw_content)
 
     if not combined.strip():
-        # No page anywhere under this domain actually yielded content (every
-        # scrape failed, or the site returned nothing usable). Without real
-        # page content, asking the LLM to "extract company info" just invites
-        # it to fall back on whatever it already knows about a company with
-        # this name from training — which may have nothing to do with what's
-        # actually (or isn't) at this specific domain. Treat this the same
-        # way as a confirmed-parked domain rather than risk a fabricated,
-        # confident-looking overview built from zero verified content.
         print(f"[scraper] WARNING: no content could be scraped from {website_url} — treating as unverified, not an operating company")
         combined = f"## {website_url}\n[No page content could be retrieved from this domain — nothing here was verified.]"
         overview = CompanyOverview(
