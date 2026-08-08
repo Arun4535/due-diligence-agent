@@ -34,7 +34,7 @@ class DiligenceResponse(BaseModel):
 async def root():
     return {"message": "Due Diligence Agent API is running"}
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "ok"}
 
