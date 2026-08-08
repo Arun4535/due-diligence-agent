@@ -5,7 +5,7 @@ from datetime import datetime
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
-SUGGESTED_STARTUPS = ["Linear", "Notion", "Vercel", "Perplexity", "Cursor"]
+SUGGESTED_STARTUPS = ["Linear", "Notion", "Vercel", "Stripe", "Figma"]
 
 VERDICT_INFO = {
     "PASS": ("green", "Data supports moving forward — strong signals across team, market, and funding."),
@@ -99,6 +99,18 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of {"input": str, "timestamp": str, "data": dict}
 
 st.title("🔍 Due Diligence Agent")
+st.caption(
+    "Enter a startup name or website. The agent scrapes the company site, searches for team, "
+    "funding, market, and competitor data, then generates a verdict and a downloadable investment memo."
+)
+
+st.info(
+    "**AI-generated analysis — not investment advice.** This tool uses AI to search public "
+    "web data and may misidentify companies, miss key facts, or produce incorrect verdicts "
+    "(as seen with ambiguous or similarly-named inputs). Always verify findings independently "
+    "before making any investment decision.",
+    icon="⚠️"
+)
 st.caption(
     "Enter a startup name or website. The agent scrapes the company site, searches for team, "
     "funding, market, and competitor data, then generates a verdict and a downloadable investment memo."

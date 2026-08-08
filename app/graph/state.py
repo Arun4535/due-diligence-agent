@@ -6,7 +6,7 @@ class CompanyOverview(BaseModel):
     name: str
     website: str
     description: str
-    founded_year: Optional[int]
+    founded_year: Optional[int] = None
     location: str
     business_model: str
 
