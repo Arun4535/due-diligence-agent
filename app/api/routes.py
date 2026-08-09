@@ -1,6 +1,7 @@
 import os
+import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -11,6 +12,22 @@ app = FastAPI(title="Due Diligence Agent", version="1.0.0")
 graph = build_graph()
 
 REPORTS_DIR = os.path.abspath("reports")
+
+# ── Simple manual rate limiter — 1 request per 5 minutes per IP ────
+RATE_LIMIT_SECONDS = 5 * 60
+_last_request_time: dict[str, float] = {}
+
+
+def _check_rate_limit(client_ip: str) -> None:
+    now = time.time()
+    last_time = _last_request_time.get(client_ip)
+    if last_time is not None and (now - last_time) < RATE_LIMIT_SECONDS:
+        wait_seconds = int(RATE_LIMIT_SECONDS - (now - last_time))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Please wait {wait_seconds} seconds before trying again."
+        )
+    _last_request_time[client_ip] = now
 
 
 class DiligenceRequest(BaseModel):
@@ -39,7 +56,10 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/analyse", response_model=DiligenceResponse)
-async def analyse(request: DiligenceRequest):
+async def analyse(http_request: Request, request: DiligenceRequest):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     if not request.startup_input or not request.startup_input.strip():
         raise HTTPException(status_code=400, detail="startup_input must not be empty")
 

@@ -7,8 +7,8 @@ class CompanyOverview(BaseModel):
     website: str
     description: str
     founded_year: Optional[int] = None
-    location: str
-    business_model: str
+    location: Optional[str] = "Unknown"
+    business_model: Optional[str] = "Unknown"
 
 
 class TeamMember(BaseModel):

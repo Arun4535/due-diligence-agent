@@ -172,6 +172,11 @@ with tab_analyse:
 
             except requests.exceptions.ConnectionError:
                 st.error("Cannot connect to API. Make sure FastAPI is running.")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 429:
+                    st.error("⏳ Rate limit reached — one analysis every 5 minutes. Please wait and try again.")
+                else:
+                    st.error(f"API error: {e.response.status_code} — {e.response.text}")
             except requests.exceptions.Timeout:
                 st.error("Analysis timed out. Try again.")
             except requests.exceptions.HTTPError as e:
